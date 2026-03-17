@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>나만의 부동산 지도</title>
+    <style>
+        body { font-family: 'Malgun Gothic', sans-serif; margin: 0; padding: 0; display: flex; flex-direction: column; height: 100vh; }
+        .input-section { padding: 15px; background: #f8f9fa; border-bottom: 1px solid #ddd; }
+        .input-section input { padding: 8px; margin-right: 5px; margin-bottom: 5px; border: 1px solid #ccc; border-radius: 4px; }
+        .input-section button { padding: 8px 15px; background: #007bff; color: white; border: none; border-radius: 4px; cursor: pointer; }
+        .input-section button:hover { background: #0056b3; }
+        #map { flex: 1; width: 100%; }
+        .info-window { padding: 10px; font-size: 14px; line-height: 1.5; min-width: 200px; }
+        .copy-btn { margin-top: 8px; padding: 5px 10px; background: #28a745; color: white; border: none; border-radius: 3px; cursor: pointer; font-size: 12px; }
+    </style>
+    <script type="text/javascript" src="//dapi.kakao.com/v2/maps/sdk.js?appkey=ded7b73951a2fb65592a6d0c03f0574b&libraries=services"></script>
+</head>
+<body>
+
+    <div class="input-section">
+        <input type="text" id="address" placeholder="주소 입력 (예: 서울 강남구 테헤란로 1)" style="width: 250px;">
+        <input type="text" id="price" placeholder="금액 (예: 1000/50)">
+        <input type="text" id="contact" placeholder="연락처 (예: 010-1234-5678)">
+        <button onclick="saveAndMarkPlace()">지도에 추가</button>
+        <button onclick="clearAllData()" style="background: #dc3545;">전체 초기화</button>
+    </div>
+
+    <div id="map"></div>
+
+    <script>
+        // 1. 지도 초기화 설정
+        var mapContainer = document.getElementById('map');
+        var mapOption = {
+            center: new kakao.maps.LatLng(37.566826, 126.978656), // 초기 중심좌표 (서울시청)
+            level: 5 // 지도의 확대 레벨
+        };
+        var map = new kakao.maps.Map(mapContainer, mapOption);
+        var geocoder = new kakao.maps.services.Geocoder(); // 주소-좌표 변환 객체
+        
+        // 2. 브라우저에 저장된 기존 데이터 불러오기
+        var savedPlaces = JSON.parse(localStorage.getItem('myRealEstateData')) || [];
+        savedPlaces.forEach(function(place) {
+            displayMarker(place);
+        });
+
+        // 3. 데이터 저장 및 마커 생성 함수
+        function saveAndMarkPlace() {
+            var address = document.getElementById('address').value;
+            var price = document.getElementById('price').value;
+            var contact = document.getElementById('contact').value;
+
+            if (!address) {
+                alert('주소를 입력해주세요!');
+                return;
+            }
+
+            // 주소로 좌표를 검색합니다
+            geocoder.addressSearch(address, function(result, status) {
+                if (status === kakao.maps.services.Status.OK) {
+                    var newPlace = {
+                        address: address,
+                        price: price,
+                        contact: contact,
+                        lat: result[0].y,
+                        lng: result[0].x
+                    };
+
+                    // 데이터 저장
+                    savedPlaces.push(newPlace);
+                    localStorage.setItem('myRealEstateData', JSON.stringify(savedPlaces));
+
+                    // 마커 표시
+                    displayMarker(newPlace);
+
+                    // 입력창 초기화 및 지도 중심 이동
+                    document.getElementById('address').value = '';
+                    document.getElementById('price').value = '';
+                    document.getElementById('contact').value = '';
+                    map.setCenter(new kakao.maps.LatLng(newPlace.lat, newPlace.lng));
+                } else {
+                    alert('주소를 찾을 수 없습니다. 정확한 주소를 입력해주세요.');
+                }
+            });
+        }
+
+        // 4. 지도에 마커와 정보창 띄우는 함수
+        function displayMarker(place) {
+            var position = new kakao.maps.LatLng(place.lat, place.lng);
+            var marker = new kakao.maps.Marker({
+                map: map,
+                position: position
+            });
+
+            // 말풍선(정보창) 내용 구성 (주소 복사 버튼 포함)
+            var content = '<div class="info-window">' +
+                          '<strong>📍 ' + place.address + '</strong><br>' +
+                          '💰 금액: ' + (place.price || '미기재') + '<br>' +
+                          '📞 연락처: ' + (place.contact || '미기재') + '<br>' +
+                          '<button class="copy-btn" onclick="copyToClipboard(\'' + place.address + '\')">주소 복사하기</button>' +
+                          '</div>';
+
+            var infowindow = new kakao.maps.InfoWindow({
+                content: content,
+                removable: true // 닫기 버튼 표시
+            });
+
+            // 마커를 클릭하면 정보창이 열리도록 설정
+            kakao.maps.event.addListener(marker, 'click', function() {
+                infowindow.open(map, marker);
+            });
+        }
+
+        // 5. 주소 복사 기능 (클립보드 API)
+        window.copyToClipboard = function(text) {
+            navigator.clipboard.writeText(text).then(function() {
+                alert('주소가 복사되었습니다: ' + text);
+            }).catch(function(err) {
+                alert('주소 복사에 실패했습니다.');
+            });
+        };
+
+        // 6. 데이터 초기화 함수
+        function clearAllData() {
+            if(confirm('저장된 모든 집의 정보와 마커를 삭제하시겠습니까?')) {
+                localStorage.removeItem('myRealEstateData');
+                location.reload(); // 페이지 새로고침하여 지도 비우기
+            }
+        }
+    </script>
+</body>
+</html>
